@@ -1,0 +1,795 @@
+---
+title: "Connecticut Data"
+author: Alex Wieseler, Audrey Bunge, Jacie McDonald, Kory Heier, Nathan Thirsten, Sam Ivanecky, Shae Olson
+date: "11/15/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Call Libraries
+```{r Load libraries, include=FALSE}
+library(tidyverse)
+library(plotly)
+library(ggplot2)
+library(dplyr)
+library(data.table)
+library(ggiraph)
+library(stringr)
+library(ggridges)
+library(plyr)
+library(maps)
+```
+
+## Get the Data
+```{r Load data, include=FALSE}
+ct <- read.csv("red_ct_data.csv")
+```
+
+##Background
+Although women hold half of all state and federal service jobs, they make 10% less than men in the public sector, according to an analysis of government documents by an investigative non-profit. The analysis, by the Contently Foundation, found that women earn 10% less median income than men in the public sector. The employee earnings records also show that 73% of government workers making $100,000 or more each year are men.
+
+Actions are in place to reduce the pay gap by barring companies and government officials from asking what the potential employee makes currently or at past jobs. States like Massachusetts has already enacted such legislation. A Georgia county has a pay match system that allows a person see what employees of close nature to their occupation makes, and if the difference is deemed significant then it is matched to the higher salary. Oregon has an audit system that occurs every 3 years to ensure no significant differences in salary are occurring.
+
+## Data Manipulation
+
+Dimensions of our data set to begin with
+```{r Dimensions}
+dim(ct)
+```
+
+x column is total yearly pay "real total gross"
+```{r Aggregate Data, echo=FALSE}
+newg<-aggregate(ct$Tot.Gross, by=list(Category = ct$EmplId.Empl.Rcd), FUN = sum)
+a <- data.table(ct, key = "EmplId.Empl.Rcd")
+b <- data.table(newg, key = "Category")
+x <- a[b]
+cct<-distinct(x, EmplId.Empl.Rcd, .keep_all = TRUE)
+names(cct)[20] <- "TotalGross"
+cct$City <- factor(ifelse(cct$City == "Bridgeport", "Bridgeport",
+                          ifelse(cct$City == "Cheshire", "Cheshire",
+                                 ifelse(cct$City == "Danbury", "Danbury",
+                                        ifelse(cct$City == "Danielson", "Danielson",
+                                               ifelse(cct$City == "Enfield", "Enfield",
+                                                      ifelse(cct$City == "Farmington" | cct$City == "FARMINGTON", "Farmington",
+                                                             ifelse(cct$City == "GROTON", "Groton",
+                                                                    ifelse(cct$City == "Hartford" | cct$City == "HARTFORD" | cct$City == "East Hartford" | cct$City == "WEST HARTFORD", "Hartford",
+                                                                           ifelse(cct$City == "Manchester", "Manchester",
+                                                                                  ifelse(cct$City == "Middlesex", "Middlesex",
+                                                                                         ifelse(cct$City == "Middletown", "Middletown",
+                                                                                                ifelse(cct$City == "New Britain", "New Britain",
+                                                                                                       ifelse(cct$City == "New Haven", "New Haven",
+                                                                                                              ifelse(cct$City == "Newington", "Newington",
+                                                                                                                     ifelse(cct$City == "Norwalk", "Norwalk",
+                                                                                                                            ifelse(cct$City == "Norwich", "Norwich",
+                                                                                                                                   ifelse(cct$City == "Rocky Hill", "Rocky Hill",
+                                                                                                                                          ifelse(cct$City == "STAMFORD", "Stamford",
+                                                                                                                                                 ifelse(cct$City == "STORRS MANSFIELD", "Storrs Mansfield",
+                                                                                                                                                        ifelse(cct$City == "Wallingford", "Wallingford",
+                                                                                                                                                               ifelse(cct$City == "Waterbury" | cct$City == "WATERBURY", "Waterbury",
+                                                                                                                                                                      ifelse(cct$City == "Wethersfield", "Wethersfield",
+                                                                                                                                                                             ifelse(cct$City == "Willimantic", "Willimantic",
+                                                                                                                                                                                    ifelse(cct$City == "Windsor Locks", "Windsor Locks", "Winsted")))))))))))))))))))))))))
+```
+
+Summary of Age categories.
+```{r Age Categories, echo=FALSE}
+cct$catAge<-factor(ifelse(cct$Age < 30, "20-29",
+                             ifelse(cct$Age<40 & cct$Age>=30, "30-39",
+                                    ifelse(cct$Age<50 & cct$Age>=40, "40-49",
+                                           ifelse(cct$Age<60 & cct$Age>=50, "50-59", 
+                                                  ifelse(cct$Age<70 & cct$Age>=60, "60-69",
+                                                         ifelse(cct$Age<80 & cct$Age>=70, "70-79","80+")))))))
+summary(cct$catAge)
+
+```
+
+Career Area
+```{r Career Area, echo=FALSE, warning=FALSE}
+cct$CarArea <- factor(ifelse(cct$Agency == "CCC - Asnuntuck" | cct$Agency == "CCC - Capital" |
+                              cct$Agency == "CCC - Gateway" | cct$Agency == "CCC - Housatonic" |
+                              cct$Agency == "CCC - Manchester" | cct$Agency == "CCC - Middlesex" |
+                              cct$Agency == "CCC - Naugatuck Valley" | cct$Agency == "CCC - Northwestern" |
+                              cct$Agency == "CCC - Norwalk" | cct$Agency == "CCC - Quinebaug Valley" |
+                              cct$Agency == "CCC - Three Rivers" | cct$Agency == "CCC - Tunxis" |
+                              cct$Agency == "Charter Oak State College" | 
+                              cct$Agency == "Comm. College System Office" |
+                              cct$Agency == "Connecticut Board of Regents" |
+                              cct$Agency == "Connecticut State Universities" |
+                              cct$Agency == "Office of Higher Education" |
+                              cct$Agency == "State Dept of Education" |
+                              cct$Agency == "Teachers' Retirment Board" |
+                              cct$Agency == "CSU - Central" | 
+                              cct$Agency == "CSU - Eastern" |
+                              cct$Agency == "CSU - Southern" | 
+                              cct$Agency == "CSU - Western" |
+                              cct$Agency == "University of Connecticut", "Education",
+                            ifelse(cct$Agency == "Agricultural Experiment Sta" |
+                                     cct$Agency == "Dept of Energy & Environ Prot." |
+                                     cct$Agency == "Dept. of Agriculture" |
+                                     cct$Agency == "Envrionmental Quality Council",
+                                   "Environmental",
+                                   ifelse(cct$Agency == "Attorney General's Office" |
+                                            cct$Agency == "Elections Enforcement" |
+                                            cct$Agency == "Governor's Office" |
+                                            cct$Agency == "Judicial Branch" |
+                                            cct$Agency == "Legislative Management" |
+                                            cct$Agency == "Lieutenant Governor's Office" |
+                                            cct$Agency == "Office of Policy Management" |
+                                            cct$Agency == "Office of State Ethics" |
+                                            cct$Agency == "Probate Court Administration" |
+                                            cct$Agency == "Secretary of the State", "Judicial",
+                                          ifelse(cct$Agency == "Auditors of Public Accounts" |
+                                                   cct$Agency == "Capital Rev Dev Authority" |
+                                                   cct$Agency == "Connecticut Green Bank" |
+                                                   cct$Agency == "Dept. of Banking" |
+                                                   cct$Agency == "Dept. of Insurance" |
+                                                   cct$Agency == "Dept. of Revenue Services" |
+                                                   cct$Agency == "Office of the State Treasurer" |
+                                                   cct$Agency == "Worker's Compensation Commiss.",
+                                                 "Finance",
+                                                 ifelse(cct$Agency == "Chief Medical Examiner's Offc" |
+                                                          cct$Agency == "Dept. of Public Health" |
+                                                          cct$Agency == "Mental Heath & Addiction Serv." |
+                                                          cct$Agency == "Off of Healthcare Advocate" |
+                                                          cct$Agency == "Psychiatric Security Review" |
+                                                          cct$Agency == "UConn Health Center" |
+                                                          cct$Agency == "Dept. of Rehab. Services", "Healthcare",
+                                                        ifelse(cct$Agency == "Comm. Women Children & Seniors" |
+                                                                 cct$Agency == "COMMISSION OF EQUITY AND OPPOR" |
+                                                                 cct$Agency == "Department of Development Serv" |
+                                                                 cct$Agency == "Dept of Administrative Svcs" |
+                                                                 cct$Agency == "Dept of Social Services" |
+                                                                 cct$Agency == "Dept. of Veterans' Affairs" |
+                                                                 cct$Agency == "Econ. & Community Development" |
+                                                                 cct$Agency == "Dept. of Children and Families" |
+                                                                 cct$Agency == "Dept. of Labor" |
+                                                                 cct$Agency == "Office of Early Childhood" |
+                                                                 cct$Agency == "Human Rights & Opportunities",
+                                                               "Social Services",
+                                                               ifelse(cct$Agency == "Connecticut Lottery Corp." |
+                                                                        cct$Agency == "Connecticut Siting Council" |
+                                                                        cct$Agency == "Connecticut State Library" |
+                                                                        cct$Agency == "CT Innovations Inc" |
+                                                                        cct$Agency == "Dept. of Consumer Protection" |
+                                                                        cct$Agency == "Freedom of Information" |
+                                                                        cct$Agency == "Office of Consumer Counsel" |
+                                                                        cct$Agency == "State Comptroller's Office" |
+                                                                        cct$Agency == "State Department of Aging",
+                                                                      "State Services",
+                                                                      ifelse(cct$Agency == "CT Housing & Fin. Authority" |
+                                                                               cct$Agency == "Department of Housing",
+                                                                             "Housing",
+                                                                             ifelse(cct$Agency == "CT Port Authority" |
+                                                                                      cct$Agency == "CT Airport Authority (OPS)" |
+                                                                                      cct$Agency == "Dept. of Motor Vehicles" |
+                                                                                      cct$Agency == "Dept. of Transportation",
+                                                                                    "Transportation",
+                                                                                    ifelse(cct$Agency == "Dept. of Emrg Svc & Public Prot" |
+                                                                                             cct$Agency == "Dept. of Correction" |
+                                                                                             cct$Agency == "Division of Criminal Justice" |
+                                                                                             cct$Agency == "Military Dept." |
+                                                                                             cct$Agency == "Public Defender Services",
+                                                                                           "Law Enforcement", "Other")))))))))))
+```
+
+Union
+```{r Union, echo=FALSE}
+cct$Union <- factor(ifelse(cct$Union.Descr == "UHC - Faculty - Non-Bargaining" | cct$Union.Descr == "No Designated Unit" | 
+                            cct$Union.Descr == "Other Non-Bargaining", "Non-Union", "Union"))
+```
+
+
+Dimensions of our data set now
+```{r New Dimensions, echo=FALSE}
+dim(cct)
+```
+
+## General Observations
+
+Structure of the data
+```{r Structure of Data, echo=FALSE}
+str(cct)
+```
+
+Summary of the data
+```{r Summary of Data, echo=FALSE}
+summary(cct)
+```
+
+Barplot
+```{r Barplot of M v F, echo=FALSE}
+#Bar Charts of Males Vs. Females by Ethnicity and Career Area---------------------------------
+
+## Males and Females of different ethnicity in the Career Area Bar Graph
+ggplot(cct, aes(x=CarArea, fill=Ethnic.Grp, color= Ethnic.Grp)) +
+  geom_bar(stat="count") +
+  coord_flip()+
+  ggtitle("Number of Males and Females in each Department") +
+  labs(x="CarArea", y="Count")+
+  facet_wrap(Sex~.)
+```
+
+```{r Obs Table, echo=FALSE}
+#If we wanted a table of the observations.
+x2 <- count(cct, c("Sex", "CarArea","Ethnic.Grp")) 
+x2
+```
+
+```{r New DF, echo=FALSE}
+df <- cct %>%
+  dplyr::group_by(Sex, CarArea) %>%
+  dplyr::summarise(count = n()) %>%
+  mutate(Sex.count = sum(count),
+         prop = count/sum(count)) %>%
+  ungroup()
+```
+
+Mosaic Plot
+```{r Mosaic Plot, echo=FALSE}
+#Mosaic plot of number of Males and Females in each department
+ggplot(df,
+       aes(x = Sex, y = prop, width = Sex.count, fill = CarArea)) +
+  geom_bar(stat = "identity", position = "fill", colour = "black") +
+  #geom_text(aes(label = scales::percent(prop)), position = position_stack(vjust = 0.5)) + # if labels are desired
+  facet_wrap(~Sex,scales = "free_x") +
+  scale_fill_brewer(palette = "RdYlGn") +
+  ggtitle("Mosaic Plot of Males and Females in Different Career Areas")
+  # theme(panel.spacing.x = unit(0, "npc")) + # if no spacing preferred between bars
+  theme_void() 
+```
+
+Pie Chart of Males and Females
+```{r Pie M v F, echo=FALSE}
+# Gender pie chart ----------------------------------------------------------------------------------------
+genderCount <- table(cct$Sex)
+pie <- ggplot(cct, aes(x = "", fill = factor(cct$Sex))) +
+    geom_bar(width = 1) +
+    theme(axis.line = element_blank(),
+          plot.title = element_text(hjust = 0.5))+
+    labs(fill = "Gender",
+         x = NULL,
+         y = NULL,
+         title = "Breakout of Gender")
+pie + coord_polar(theta = "y", start = 0) + scale_fill_brewer(palette = "Set3")
+```
+
+Pie Chart of Career Area
+```{r Pie - Career, echo=FALSE}
+#car area pie chart ----------------------------------------------------------------------------------------
+pie2 <- ggplot(cct, aes(x = "", fill = factor(cct$CarArea))) +
+    geom_bar(width = 1) +
+    theme(axis.line = element_blank(),
+          plot.title = element_text(hjust = 0.5))+
+    labs(fill = "Career Area",
+         x = NULL,
+         y = NULL,
+         title = "Breakout of Career Areas")
+pie2 + coord_polar(theta = "y", start = 0) + scale_fill_brewer(palette = "Set3")
+
+```
+
+Ring Plot of Career Area
+```{r Ring - Career, echo=FALSE}
+depart<-aggregate(cct$TotalGross, by=list(Category=cct$CarArea), FUN=sum)
+
+depart$fraction = depart$x / sum(depart$x)
+depart = depart[order(depart$fraction), ]
+depart$ymax = cumsum(depart$fraction)
+depart$ymin = c(0, head(depart$ymax, n=-1))
+
+p1 = ggplot(depart, aes(fill=Category, ymax=ymax, ymin=ymin, xmax=4, xmin=3)) +
+  geom_rect() +
+  coord_polar(theta="y") +
+  xlim(c(0, 4)) +
+  labs(title="Payout by Career Area")
+
+p1
+```
+
+Pie Chart of Ethnic Group
+```{r Pie - Ethnic, echo=FALSE}
+# Ethnic pie chart -------------------------------------------------------------------------------------------
+ethnicCount <- table(cct$Ethnic.Grp)
+pie1 <- ggplot(cct, aes(x = "", fill = factor(cct$Ethnic.Grp))) +
+    geom_bar(width = 1) +
+    theme(axis.line = element_blank(),
+          plot.title = element_text(hjust = 0.5))+
+    labs(fill = "Ethnic Group",
+         x = NULL,
+         y = NULL,
+         title = "Breakout of Ethnic Groups")
+pie1 + coord_polar(theta = "y", start = 0) + scale_fill_brewer(palette = "Set3")
+```
+
+Age Distribution
+```{r Age Dist - CatAge, echo=FALSE}
+g <- ggplot(cct, aes(catAge))
+g + geom_density(aes(fill = (catAge)), alpha = 0.8) +
+    labs(title = "Age Breakout")
+```
+
+Age Distribution by Sex
+```{r Age by Sex, echo=FALSE}
+ggplot(cct, aes(Age, col = Sex, fill = Sex)) +
+  geom_density(alpha = 0.2, size = 2) +
+  ggtitle("Density plot of age by sex")
+```
+
+Map of the City colored by Population (Nathan)
+```{r Map of City, echo=FALSE}
+states <- map_data("state")
+
+CT <- subset(states, region %in% c("connecticut"))
+
+map.cities(us.cities, country = "CT")
+
+lat <- c(41.74699, 41.80855, 41.7117, 41.7489, 41.56266, 41.30762, 41.69722, 41.55407, 41.66772, 41.71096, 41.18188, 41.49835, 
+         41.39268, 41.80328, 42.0005, 41.3485, 41.77554, 41.11366, 41.52656, 41.66898, 41.05182, 41.45362, 41.9297, 41.92118) 
+long <- c(-72.74592, -72.24993, -72.66338, -72.8677, -72.64984, -72.92462, -72.73004, -73.04617, -72.78215, -72.20529, 
+          -73.19127, -72.90175, -73.45359, -71.88568, -72.59394, -72.0775, -72.52223, -73.40765, -72.07571, -72.63777, -73.54223, -72.8187, -72.63181, -73.0682)                                
+city <- c("Hartford", "Storrs Mansfield", "Wethersfield", "Farmington", "Middletown", "New Haven", "Newington", "Waterbury", "New Britain", 
+          "Willimantic", "Bridgeport", "Cheshire", "Danbury", "Danielson", "Enfield", "Groton", "Manchester", "Norwalk", "Norwich", 
+          "Rocky Hill", "Stamford", "Wallingford", "Windsor Locks", "Winsted")    
+pop <- c(123400, 25912, 26195, 25572, 46478, 131014, 30404, 108629, 72710, 17737, 146579, 29330, 85246, 3997, 44585,
+         39075, 57932, 89005, 39470, 20105, 130824, 44741, 12554, 7321)
+cityFrame <- data.frame(city = city, latitude = lat, longitude = long, population = pop)
+
+g <- ggplot() + 
+  geom_polygon(data = CT, aes(x = long, y = lat, group = group), colour= "black", fill="darkgreen" ) +
+  geom_point(data = cityFrame, aes(x=longitude, y=latitude, size = population), color = "white") +
+  geom_text(data=cityFrame, aes(x=long, y=lat,label=city), size=3, color = "black") +
+  ggtitle("Representation of Respondents Home Cities")+
+  xlab('Longitude')+
+  ylab('Latitude')
+
+ggplotly(g)
+```
+
+Count of Gender by Class Description
+```{r Gender by Class, echo=FALSE}
+# class descriptor by gender ----------------------------------------------------------------------------------
+
+
+plot4 <- ggplot(cct, aes(x = cct$EE.Class.Descr, fill = cct$Sex, color = cct$Sex)) +
+    geom_bar(stat="count") +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1)) +
+    ggtitle("Count of Class Descriptors by gender") +
+    labs(x = "Class Descriptors", y = "Count")
+
+ggplotly(plot4)       
+```
+
+Count of Ethnicity by Class Description
+```{r Ethnicity by Class, echo=FALSE}
+# class descriptor by ethnic group ------------------------------------------------------------------------------
+
+plot5 <- ggplot(cct, aes(x = cct$EE.Class.Descr, fill = cct$Ethnic.Grp, color = cct$Ethnic.Grp)) +
+    geom_bar(stat="count") +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1)) +
+    ggtitle("Count of Class Descriptors by ethnic group") +
+    labs(x = "Class Descriptors", y = "Count")
+
+ggplotly(plot5)
+```
+
+Pie chart of Union Description
+```{r Pie - Union, echo=FALSE}
+ethnicCount <- table(cct$Union)
+pie1 <- ggplot(cct, aes(x = "", fill = factor(cct$Union))) +
+    geom_bar(width = 1) +
+    theme(axis.line = element_blank(),
+          plot.title = element_text(hjust = 0.5))+
+    labs(fill = "Union",
+         x = NULL,
+         y = NULL,
+         title = "Breakout of Employees in Unions")
+pie1 + coord_polar(theta = "y", start = 0) + scale_fill_brewer(palette = "Set3")
+```
+
+Total Gross distribution split up by union vs non-union 
+```{r TotalGross - Union, echo=FALSE}
+# Cumulative
+ggplot(cct, aes(Union, sum(TotalGross), fill = Union)) +
+  geom_bar(stat="identity") +
+  ggtitle("Total Gross Distribution by Union vs Non-Union") +
+  labs(y="Cumulative Total Gross")
+```
+
+```{r TG - Union Mean, echo=FALSE}
+# Mean
+ggplot(cct, aes(Union, mean(TotalGross), fill = Union)) +
+  geom_bar(stat="identity") +
+  ggtitle("Average Gross Distribution by Union vs Non-Union") +
+  labs(y="Average Total Gross")
+```
+
+
+Total Gross ridgeline plot by Sex and Career Area
+```{r TG Ridgeline by Sex/Career, echo=FALSE}
+ggplot(cct, aes(x = TotalGross, y = CarArea, fill = Sex)) +
+  geom_density_ridges(alpha = 0.5) +
+  theme_ridges() + 
+  scale_x_continuous(limits = c(0,200000))+ 
+  xlab("Total Gross")+
+  ggtitle("Ridgeline plot of the Total Gross by Sex and Career Area")
+```
+
+
+## Trends
+
+City Demographics
+```{r City Demographics, echo=FALSE}
+cd1 <- ggplot(cct, aes(x=catAge, y=City, color=cct$catAge)) +
+  geom_count() +
+  ggtitle("Dotplot of Age by City") +
+  labs(x="Age", y="City")
+
+ggplotly(cd1)
+```
+
+```{r City Dem 2, echo=FALSE}
+cd2 <- ggplot(cct, aes(x=City, fill=catAge, color=catAge)) +
+  geom_bar(stat="count") +
+  coord_flip() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ggtitle("Age Count by City") +
+  labs(x="City", y="Count")
+ggplotly(cd2)
+
+```
+
+```{r City Dem 3, echo=FALSE}
+cd3 <- ggplot(cct, aes(x=City, fill=cct$Ethnic.Grp, color=cct$Ethnic.Grp)) +
+  geom_bar(stat="count") +
+  coord_flip() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ggtitle("Ethnicity Count by City") +
+  labs(x="City", y="Count")
+
+ggplotly(cd3)
+```
+
+```{r City Dem 4, echo=FALSE}
+cd4 <- ggplot(cct, aes(x=cct$Ethnic.Grp, fill=City)) +
+  geom_bar(position = "fill") +
+  ggtitle("Distribution of City by Ethnicity") +
+  labs(x="Ethnicity", y="Count")
+
+ggplotly(cd4)
+```
+
+```{r City Dem 6, echo=FALSE}
+cd6 <- ggplot(cct, aes(x=City, fill=Sex)) +
+  geom_bar(position = "fill") +
+  coord_flip() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ggtitle("Distribution of Sex by City") +
+  labs(x="City", y="Count")
+
+ggplotly(cd6)
+```
+
+Boxplot of Total Gross by Sex and Age
+```{r TG Boxplot, echo=FALSE, warning=FALSE}
+p3 <- ggplot(cct, aes(x=Sex, y=TotalGross, color=Sex)) +
+  geom_boxplot() +
+  ggtitle("Boxplot of Total Gross by Sex and Age") +
+  labs(x="Sex", y="Total Gross") + facet_grid(.~catAge)
+
+ggplotly(p3)
+```
+
+Mean of Total Gross vs Age by Gender
+```{r TG by Age/Sex, echo=FALSE, warning=FALSE}
+# Create temporary dataframe
+temp <- cct[,c(11,16,20)]
+temp <- aggregate(temp, by = list(cct$Age, cct$Sex), FUN = mean)
+
+# Rename columns
+names(temp)[1] <- "Age"
+names(temp)[2] <- "Sex"
+
+# Remove duplicate columns
+temp <- temp[,c(1:2,5)]
+
+# Refactor vars
+temp$Sex <- as.factor(temp$Sex)
+
+# Create plot
+p <- ggplot(temp, aes(Age, TotalGross, colour = Sex)) +
+      geom_point() +
+      geom_line() +
+      ggtitle("Mean of Total Gross vs Age by Gender") +
+      labs(y="Total Gross")
+
+# Plot
+ggplotly(p)
+```
+
+Difference in Means vs Age
+```{r Diff Means, echo=FALSE, warning=FALSE}
+# Create temporary dataframe
+temp <- cct[,c(11,16,20)]
+temp <- aggregate(temp, by = list(cct$Age, cct$Sex), FUN = mean)
+
+# Rename columns
+names(temp)[1] <- "Age"
+names(temp)[2] <- "Sex"
+
+# Remove duplicate columns
+temp <- temp[,c(1:2,5)]
+
+# Refactor vars
+temp$Sex <- as.factor(temp$Sex)
+
+men <- temp[which(temp$Sex == "M" & temp$Age < 66 & temp$Age >21),]
+women <- temp[which(temp$Sex == "F" & temp$Age <66 & temp$Age >21),]
+
+diffs <- men$TotalGross - women$TotalGross
+
+gender <- as.data.frame(cbind(men$Age, diffs))
+
+names(gender)[1] <- "Age"
+
+ggplot(gender, aes(Age, diffs)) +
+  geom_point() +
+  geom_line(colour = "blue") +
+  ggtitle("Gender Difference of Mean Total Gross by Age") +
+  labs(x="Age", y="Difference of Mean Total Gross") +
+  geom_hline(yintercept=mean(diffs), colour = "red", linetype = "dashed")
+```
+
+Percent Difference in Means
+```{r Pct Diffs, echo=FALSE, warning=FALSE}
+# Get difference percents
+diffpcts <- (women$TotalGross/men$TotalGross)
+
+tmp <- as.data.frame(cbind(men$Age, diffpcts))
+
+names(tmp)[1] <- "Age"
+names(tmp)[2] <- "Pct_Diff"
+
+ggplot(tmp, aes(Age, Pct_Diff)) +
+  geom_bar(stat = "identity", colour = "black", fill = "lightblue") + 
+  geom_hline(yintercept = 0.9, colour = "red", linetype = "dashed", lwd = 1.2) +
+  geom_hline(yintercept = mean(tmp$Pct_Diff), colour = "lightgreen", linetype = "dashed", lwd = 1.2) +
+  coord_cartesian(ylim=c(0.75,1)) +
+  ggtitle("Percent of Women's Salary Compared to Men") +
+  labs(x = "Age", y = "Percent of Male Salary")
+```
+
+
+Barplot of Mean Total Gross by Career for M vs F
+```{r Barplot Mean TG, echo=FALSE, warning=FALSE}
+temp <- melt(cct, id.vars=c("Sex", "CarArea"), measure.vars = "TotalGross")
+means <- ddply(temp, c("Sex", "CarArea"), summarise,
+               mean=mean(value))
+
+# Plot difference in means by career area
+ggplot(means, aes(x=CarArea, y=mean, fill=Sex)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  ggtitle("Mean Total Gross by Career Area of Male vs Female") +
+  labs(x="Career", y="Mean Total Gross")
+```
+
+```{r Means Barplot, echo=FALSE, warning=FALSE}
+# Create separate dfs for differencing 
+men <- means[which(means$Sex == "M"),]
+women <- means[which(means$Sex == "F"),]
+diffs <- men$mean - women$mean
+
+# Add a difference column to original df
+means$diff <- diffs
+
+# Create plotly graph
+p <- ggplot(means, aes(x=CarArea, y=diff, fill=CarArea)) +
+      geom_bar(stat = "identity", position = "dodge") +
+      ggtitle("Mean Total Gross Difference by Career Area") +
+      labs(x="Career", y="Difference in Mean Total Gross") +
+      theme(legend.position="none")
+
+# Plot
+ggplotly(p)
+```
+
+
+Scatter plot of Females - Total Gross vs categorized by Age
+```{r Scatter Females, echo=FALSE}
+#Scatterplots of Males and Females Of Total Gross Vs Age categorized by Age group.------------
+
+#####Subsetting the data into males and females
+#Females
+femaledata <- subset(cct, Sex == "F")
+dim(femaledata)
+
+tempfemale <- femaledata[which(femaledata$TotalGross > 0 & femaledata$TotalGross < 200000),]
+sampfemale <- tempfemale[sample(1:nrow(tempfemale), 5000, replace=FALSE),]
+ggplot(sampfemale, aes(x=Age, y=TotalGross)) + 
+  geom_point(aes(color = catAge))+
+  facet_wrap(~CarArea)+
+  scale_y_continuous(limits = c(0,200000))+
+  geom_smooth(method='lm',formula=y~x, colour = "black")+
+  ylab("Total Gross")+
+  ggtitle("Total Gross VS. Age of Females by Career Area (5000 Sample)")
+```
+
+Scatter plot of Males - Total Gross vs categorized by Age
+```{r Scatter Males, echo=FALSE}
+#Males
+maledata<- subset(cct, Sex == "M")
+dim(maledata)
+
+tempmale <- maledata[which(maledata$TotalGross > 0 & maledata$TotalGross < 200000),]
+sampmale <- tempmale[sample(1:nrow(tempmale), 5000, replace=FALSE),]
+ggplot(sampmale, aes(x=Age, y=TotalGross)) + 
+  geom_point(aes(color = catAge))+
+  facet_wrap(~CarArea)+
+  scale_y_continuous(limits = c(0,200000))+
+  geom_smooth(method='lm',formula=y~x, colour = "black")+
+  ylab("Total Gross")+
+  ggtitle("Total Gross VS. Age of Males by Career Area (5000 Sample)")
+```
+
+Boxplot of Career Age by Ethnicity
+```{r Boxplot Eth, echo=FALSE}
+ggplot(cct, aes(Ethnic.Grp, y = TotalGross, fill = Ethnic.Grp)) + 
+  geom_boxplot()+
+  scale_y_continuous(limits = c(0,200000))+
+  facet_wrap(~CarArea)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("Box Plot of Career Area by Ethnicity")+
+  ylab("Total Gross")
+
+```
+
+Diverging Bar Plots - Average
+```{r Div Bar, echo=FALSE, warning=FALSE}
+sp <- aggregate(TotalGross~Job.Cd.Descr, data = cct, FUN = length)
+wh <- sp[ which(sp$TotalGross > 300), ]
+names(wh)[2]<- "cont"
+c <- data.table(cct, key = "Job.Cd.Descr")
+d <- data.table(wh, key = "Job.Cd.Descr")
+this <- c[d]
+
+this$avgTotalGross <- round((this$TotalGross - mean(this$TotalGross))/sd(this$TotalGross), 2)
+this$xtype <- ifelse(this$avgTotalGross < 0, "below", "above")
+this$Job.Cd.Descr <- as.factor(this$Job.Cd.Descr)
+
+ggplot(this, aes(x=Job.Cd.Descr, y=avgTotalGross, label=avgTotalGross)) + 
+  geom_bar(stat='identity', aes(fill=xtype), width=.5)  +
+  scale_fill_manual(name="Total Gross", 
+                    labels = c("Above Average", "Below Average"), 
+                    values = c("above"="#00ba38", "below"="#f8766d")) + 
+  labs(title= "Diverging Bars - Average") + 
+  coord_flip()
+```
+
+Diverging Bar Plots - Median
+```{r Div Bar Median, echo=FALSE, warning=FALSE}
+sp <- aggregate(TotalGross~Job.Cd.Descr, data = cct, FUN = length)
+wh <- sp[ which(sp$TotalGross > 300), ]
+names(wh)[2]<- "cont"
+c <- data.table(cct, key = "Job.Cd.Descr")
+d <- data.table(wh, key = "Job.Cd.Descr")
+this <- c[d]
+
+this$medTotalGross <- round((this$TotalGross - median(this$TotalGross))/sd(this$TotalGross), 2)
+this$xtype <- ifelse(this$medTotalGross < 0, "below", "above")
+this$Job.Cd.Descr <- as.factor(this$Job.Cd.Descr)
+
+ggplot(this, aes(x=Job.Cd.Descr, y=medTotalGross, label=medTotalGross)) + 
+  geom_bar(stat='identity', aes(fill=xtype), width=.5)  +
+  scale_fill_manual(name="Total Gross", 
+                    labels = c("Above Median", "Below Median"), 
+                    values = c("above"="#00ba38", "below"="#f8766d")) + 
+  labs(title= "Diverging Bars - Median") + 
+  coord_flip()
+```
+
+Ethnicity vs Age
+```{r Eth vs Age, echo=FALSE, warning=FALSE}
+# Create temporary dataframe
+temp <- cct[,c(11,15,20)]
+temp <- aggregate(temp, by = list(cct$Age, cct$Ethnic.Grp), FUN = mean)
+
+# Rename columns
+names(temp)[1] <- "Age"
+names(temp)[2] <- "Ethnic.Grp"
+
+# Remove duplicate columns
+temp <- temp[,c(1:2,5)]
+
+# Refactor vars
+temp$Ethnic.Grp <- as.factor(temp$Ethnic.Grp)
+
+# Plot
+p <- ggplot(temp, aes(Age, TotalGross, colour = Ethnic.Grp)) +
+      geom_point() +
+      geom_line() +
+      ggtitle("Mean of Total Gross vs Age by Ethnicity") +
+      labs(y="Total Gross") +
+      xlim(20,60) +
+      ylim(0,150000)
+
+ggplotly(p)
+```
+
+## Linear Model
+```{r Gen Lin Mod, echo=FALSE}
+# Create log of variable
+cct$logTotalGross <- log(cct$TotalGross)
+
+# Subset data for use in linear model
+tmp <- cct[,c(11,13,15:18,20,22,24)]
+
+attach(tmp)
+
+# Create test and training datasets
+set.seed(100)  # setting seed to reproduce results of random sampling
+trainingRowIndex <- sample(1:nrow(tmp), 0.8*nrow(tmp))  # row indices for training data
+trainData <- tmp[trainingRowIndex, ]  # model training data
+testData  <- tmp[-trainingRowIndex, ]
+
+# Check distribution
+ggplot(trainData, aes(TotalGross)) +
+  geom_histogram(bins = 40, colour = "darkblue", fill = "lightblue") +
+  ggtitle("Distribution of Total Gross")
+```
+
+```{r Check dist, echo=FALSE}
+# Check log distribution
+ggplot(trainData, aes(log(TotalGross))) +
+  geom_histogram(bins = 75, colour = "darkblue", fill = "lightblue") +
+  ggtitle("Distribution of log Total Gross")
+
+# Generate linear model
+mod <- lm(logTotalGross ~ Age + City + Ethnic.Grp + Sex + EE.Class.Descr + Union.Descr + CarArea, data = trainData)
+
+# Summary of model
+summary(mod)
+
+trainData <- trainData[which(trainData$Union.Descr != "DivPublicDefSrvs - Statutory"),]
+testData <- testData[which(testData$Union.Descr != "DivPublicDefSrvs - Statutory"),]
+
+# Run prediction with testing data set
+pred <- predict(mod, testData)
+
+# Create data frame of actuals vs predicted
+actual_pred <- data.frame(cbind(act=testData$logTotalGross, pred=pred))
+
+# MAPE - results in 2.04% error
+lm.mape <- mean(abs((actual_pred$pred - actual_pred$act))/actual_pred$act)
+
+# Take sample of 500 from predicted vs actual
+smp <- actual_pred[sample(1:nrow(actual_pred), 500, replace=FALSE),]
+
+```
+
+
+Model Aqequacy
+```{r Preed vs Act, echo=FALSE}
+# Plot pred vs actuals
+ggplot(smp, aes(pred, act)) +
+  geom_point() +
+  ggtitle("Predicted vs Actual") +
+  labs(x="Predicted", y="Actual") +
+  geom_abline(slope = 1, col = "blue")
+```
+
+```{r Res, echo=FALSE}
+# Generate residuals of model
+lin.res <- resid(mod)
+# plot residuals
+plot(trainData$logTotalGross, lin.res, 
+       ylab="Residuals")
+abline(0, 0)
+```
+
+
+```{r Hist of Res, echo=FALSE}
+hist(lin.res, breaks=20)
+```
+
